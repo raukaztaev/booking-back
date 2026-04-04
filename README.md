@@ -1,6 +1,6 @@
 # Booking System Backend
 
-Production-style pet project на Java 17 + Spring Boot для бронирования ресурсов (например, meeting rooms).
+Проект на Java 17 + Spring Boot для бронирования ресурсов (например, meeting rooms).
 
 ## Структура проекта
 

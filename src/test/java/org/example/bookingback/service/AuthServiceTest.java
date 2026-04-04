@@ -3,17 +3,23 @@ package org.example.bookingback.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.example.bookingback.dto.auth.AuthResponse;
+import org.example.bookingback.dto.auth.LogoutRequest;
+import org.example.bookingback.dto.auth.RefreshTokenRequest;
 import org.example.bookingback.dto.auth.RegisterRequest;
+import org.example.bookingback.entity.RefreshToken;
 import org.example.bookingback.entity.Role;
 import org.example.bookingback.entity.User;
 import org.example.bookingback.entity.UserRole;
 import org.example.bookingback.entity.enums.RoleName;
 import org.example.bookingback.exception.ConflictException;
+import org.example.bookingback.exception.UnauthorizedException;
 import org.example.bookingback.mapper.UserMapper;
 import org.example.bookingback.repository.RefreshTokenRepository;
 import org.example.bookingback.repository.RoleRepository;
@@ -108,5 +114,77 @@ class AuthServiceTest {
         assertEquals("access", response.accessToken());
         assertEquals("refresh", response.refreshToken());
         verify(refreshTokenRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Не пускаем в refresh, если токен уже отозван")
+    void shouldRejectRefreshForRevokedToken() {
+        AuthService service = new AuthService(
+                userRepository,
+                roleRepository,
+                userRoleRepository,
+                refreshTokenRepository,
+                passwordEncoder,
+                authenticationManager,
+                jwtService,
+                new JwtProperties("issuer", 900_000, 604_800_000, "12345678901234567890123456789012345678901234567890"),
+                userMapper
+        );
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken("revoked-token");
+        refreshToken.setRevoked(true);
+        refreshToken.setExpiryDate(java.time.OffsetDateTime.now().plusDays(7));
+
+        when(refreshTokenRepository.findByToken("revoked-token")).thenReturn(Optional.of(refreshToken));
+
+        assertThrows(UnauthorizedException.class, () -> service.refresh(new RefreshTokenRequest("revoked-token")));
+    }
+
+    @Test
+    @DisplayName("Не пускаем в refresh, если токен вообще не найден")
+    void shouldRejectRefreshWhenTokenNotFound() {
+        AuthService service = new AuthService(
+                userRepository,
+                roleRepository,
+                userRoleRepository,
+                refreshTokenRepository,
+                passwordEncoder,
+                authenticationManager,
+                jwtService,
+                new JwtProperties("issuer", 900_000, 604_800_000, "12345678901234567890123456789012345678901234567890"),
+                userMapper
+        );
+
+        when(refreshTokenRepository.findByToken("missing-token")).thenReturn(Optional.empty());
+
+        assertThrows(UnauthorizedException.class, () -> service.refresh(new RefreshTokenRequest("missing-token")));
+    }
+
+    @Test
+    @DisplayName("На logout просто отзываем refresh токен")
+    void shouldRevokeTokenOnLogout() {
+        AuthService service = new AuthService(
+                userRepository,
+                roleRepository,
+                userRoleRepository,
+                refreshTokenRepository,
+                passwordEncoder,
+                authenticationManager,
+                jwtService,
+                new JwtProperties("issuer", 900_000, 604_800_000, "12345678901234567890123456789012345678901234567890"),
+                userMapper
+        );
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken("logout-token");
+        refreshToken.setRevoked(false);
+        refreshToken.setExpiryDate(OffsetDateTime.now().plusDays(7));
+
+        when(refreshTokenRepository.findByToken("logout-token")).thenReturn(Optional.of(refreshToken));
+
+        service.logout(new LogoutRequest("logout-token"));
+
+        assertEquals(true, refreshToken.isRevoked());
     }
 }

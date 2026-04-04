@@ -9,11 +9,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.example.bookingback.dto.booking.CreateBookingRequest;
 import org.example.bookingback.entity.Booking;
 import org.example.bookingback.entity.Resource;
 import org.example.bookingback.entity.User;
 import org.example.bookingback.entity.enums.BookingStatus;
+import org.example.bookingback.exception.BadRequestException;
 import org.example.bookingback.exception.ConflictException;
 import org.example.bookingback.exception.ForbiddenException;
 import org.example.bookingback.repository.BookingHistoryRepository;
@@ -117,5 +119,61 @@ class BookingServiceTest {
         assertEquals(BookingStatus.PENDING, created.getStatus());
         assertEquals(actor, created.getUser());
         assertEquals(resource, created.getResource());
+    }
+
+    @Test
+    @DisplayName("Не даем сделать кривой переход по статусу")
+    void shouldRejectIllegalStatusTransition() {
+        Booking booking = new Booking();
+        booking.setId(200L);
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setUser(actor);
+        booking.setResource(resource);
+
+        when(bookingRepository.findWithDetailsById(200L)).thenReturn(java.util.Optional.of(booking));
+
+        assertThrows(BadRequestException.class, () ->
+                bookingService.updateStatus(200L, BookingStatus.CONFIRMED, actor, true)
+        );
+    }
+
+    @Test
+    @DisplayName("Не даем создать бронь в прошлом")
+    void shouldRejectBookingInPast() {
+        CreateBookingRequest request = new CreateBookingRequest(
+                30L,
+                OffsetDateTime.now().minusHours(2),
+                OffsetDateTime.now().minusHours(1)
+        );
+
+        assertThrows(BadRequestException.class, () -> bookingService.create(request, actor, false));
+    }
+
+    @Test
+    @DisplayName("Не даем создать бронь с перепутанным временем")
+    void shouldRejectBookingWithInvalidTimeRange() {
+        CreateBookingRequest request = new CreateBookingRequest(
+                30L,
+                OffsetDateTime.now().plusHours(2),
+                OffsetDateTime.now().plusHours(1)
+        );
+
+        assertThrows(BadRequestException.class, () -> bookingService.create(request, actor, false));
+    }
+
+    @Test
+    @DisplayName("Пользователь не может сам себе подтвердить бронь")
+    void shouldRejectConfirmByBooker() {
+        Booking booking = new Booking();
+        booking.setId(300L);
+        booking.setStatus(BookingStatus.PENDING);
+        booking.setUser(actor);
+        booking.setResource(resource);
+
+        when(bookingRepository.findWithDetailsById(300L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ForbiddenException.class, () ->
+                bookingService.updateStatus(300L, BookingStatus.CONFIRMED, actor, false)
+        );
     }
 }

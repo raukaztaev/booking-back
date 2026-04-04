@@ -21,6 +21,7 @@ import org.example.bookingback.repository.UserRepository;
 import org.example.bookingback.repository.UserRoleRepository;
 import org.example.bookingback.security.JwtProperties;
 import org.example.bookingback.security.JwtService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -53,6 +54,7 @@ class AuthServiceTest {
     private AuthService authService;
 
     @Test
+    @DisplayName("Не регаем пользователя второй раз на тот же email")
     void shouldRejectDuplicateEmailOnRegister() {
         AuthService service = new AuthService(
                 userRepository,
@@ -71,6 +73,7 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Рега проходит и токены тоже приходят")
     void shouldRegisterUserAndIssueTokens() {
         AuthService service = new AuthService(
                 userRepository,

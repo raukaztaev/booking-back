@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.bookingback.dto.auth.LoginRequest;
 import org.example.bookingback.dto.auth.RefreshTokenRequest;
 import org.example.bookingback.dto.auth.RegisterRequest;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -28,6 +29,7 @@ class AuthControllerIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
+    @DisplayName("Полный auth сценарий: рега, логин, рефреш и выход")
     void shouldRegisterLoginRefreshAndLogout() throws Exception {
         String registerResponse = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)

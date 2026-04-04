@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,6 +31,7 @@ class BookingControllerIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
+    @DisplayName("Создаем бронь, ловим пересечение и потом подтверждаем")
     void shouldCompleteBookingFlowAndRejectOverlap() throws Exception {
         String managerToken = login("manager@booking.local", "Password123!");
         String userToken = registerAndGetToken("flow-user@test.local");
@@ -70,6 +72,7 @@ class BookingControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Чужую бронь по id не отдаем")
     void shouldReturnNotFoundForForeignBookingAccess() throws Exception {
         String managerToken = login("manager@booking.local", "Password123!");
         String firstUserToken = registerAndGetToken("owner-user@test.local");

@@ -20,6 +20,7 @@ import org.example.bookingback.repository.BookingHistoryRepository;
 import org.example.bookingback.repository.BookingRepository;
 import org.example.bookingback.repository.ResourceAccessRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -62,6 +63,7 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Не даем создать бронь, если время уже занято")
     void shouldRejectOverlappingBooking() {
         CreateBookingRequest request = new CreateBookingRequest(
                 30L,
@@ -77,6 +79,7 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Не даем бронировать закрытую комнату без доступа")
     void shouldRejectRestrictedResourceWithoutGrant() {
         resource.setRestricted(true);
         CreateBookingRequest request = new CreateBookingRequest(
@@ -92,6 +95,7 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Создаем обычную бронь, если все ок")
     void shouldCreatePendingBookingWhenValid() {
         CreateBookingRequest request = new CreateBookingRequest(
                 30L,

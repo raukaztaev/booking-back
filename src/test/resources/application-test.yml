@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:${random.uuid};MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+
+app:
+  security:
+    jwt:
+      issuer: booking-back-test
+      access-token-expiration: 900000
+      refresh-token-expiration: 604800000
+      secret: 12345678901234567890123456789012345678901234567890

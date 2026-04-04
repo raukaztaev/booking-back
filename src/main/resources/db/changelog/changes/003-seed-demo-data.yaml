@@ -1,0 +1,154 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-seed-demo-users
+      author: codex
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column: {name: email, value: alice@booking.local}
+              - column: {name: password, value: $2y$10$3PEhWiAMXlbqXK0HfLjrweWEn.IrEuP.9ek1igrRRUukK4bKsSahG}
+              - column: {name: enabled, valueBoolean: true}
+        - insert:
+            tableName: users
+            columns:
+              - column: {name: email, value: bob@booking.local}
+              - column: {name: password, value: $2y$10$3PEhWiAMXlbqXK0HfLjrweWEn.IrEuP.9ek1igrRRUukK4bKsSahG}
+              - column: {name: enabled, valueBoolean: true}
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'alice@booking.local')"}
+              - column: {name: role_id, valueComputed: "(SELECT id FROM roles WHERE name = 'USER')"}
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'bob@booking.local')"}
+              - column: {name: role_id, valueComputed: "(SELECT id FROM roles WHERE name = 'USER')"}
+  - changeSet:
+      id: 013-seed-demo-resources
+      author: codex
+      changes:
+        - insert:
+            tableName: resources
+            columns:
+              - column: {name: name, value: Board Room A}
+              - column: {name: description, value: Main board room for management meetings}
+              - column: {name: capacity, valueNumeric: 12}
+              - column: {name: restricted, valueBoolean: false}
+              - column: {name: owner_id, valueComputed: "(SELECT id FROM users WHERE email = 'manager@booking.local')"}
+        - insert:
+            tableName: resources
+            columns:
+              - column: {name: name, value: Focus Room B}
+              - column: {name: description, value: Quiet room for 1:1 sessions and interviews}
+              - column: {name: capacity, valueNumeric: 4}
+              - column: {name: restricted, valueBoolean: false}
+              - column: {name: owner_id, valueComputed: "(SELECT id FROM users WHERE email = 'manager@booking.local')"}
+        - insert:
+            tableName: resources
+            columns:
+              - column: {name: name, value: Executive Room C}
+              - column: {name: description, value: Restricted meeting room for leadership sessions}
+              - column: {name: capacity, valueNumeric: 8}
+              - column: {name: restricted, valueBoolean: true}
+              - column: {name: owner_id, valueComputed: "(SELECT id FROM users WHERE email = 'admin@booking.local')"}
+  - changeSet:
+      id: 014-seed-resource-access-and-notes
+      author: codex
+      changes:
+        - insert:
+            tableName: resource_accesses
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Executive Room C')"}
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'alice@booking.local')"}
+              - column: {name: granted_by, valueComputed: "(SELECT id FROM users WHERE email = 'admin@booking.local')"}
+        - insert:
+            tableName: resource_notes
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Board Room A')"}
+              - column: {name: author_id, valueComputed: "(SELECT id FROM users WHERE email = 'manager@booking.local')"}
+              - column: {name: note, value: Projector and whiteboard are available in this room}
+        - insert:
+            tableName: resource_notes
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Executive Room C')"}
+              - column: {name: author_id, valueComputed: "(SELECT id FROM users WHERE email = 'admin@booking.local')"}
+              - column: {name: note, value: Access is limited to approved users and administrators}
+  - changeSet:
+      id: 015-seed-demo-bookings
+      author: codex
+      changes:
+        - insert:
+            tableName: bookings
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Board Room A')"}
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'alice@booking.local')"}
+              - column: {name: start_time, valueDate: 2099-05-01T09:00:00Z}
+              - column: {name: end_time, valueDate: 2099-05-01T10:00:00Z}
+              - column: {name: status, value: PENDING}
+        - insert:
+            tableName: bookings
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Focus Room B')"}
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'bob@booking.local')"}
+              - column: {name: start_time, valueDate: 2099-05-01T11:00:00Z}
+              - column: {name: end_time, valueDate: 2099-05-01T12:00:00Z}
+              - column: {name: status, value: CONFIRMED}
+        - insert:
+            tableName: bookings
+            columns:
+              - column: {name: resource_id, valueComputed: "(SELECT id FROM resources WHERE name = 'Executive Room C')"}
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'alice@booking.local')"}
+              - column: {name: start_time, valueDate: 2099-05-02T14:00:00Z}
+              - column: {name: end_time, valueDate: 2099-05-02T15:00:00Z}
+              - column: {name: status, value: CANCELLED}
+  - changeSet:
+      id: 016-seed-booking-history
+      author: codex
+      changes:
+        - insert:
+            tableName: booking_history
+            columns:
+              - column: {name: booking_id, valueComputed: "(SELECT id FROM bookings WHERE resource_id = (SELECT id FROM resources WHERE name = 'Board Room A') AND user_id = (SELECT id FROM users WHERE email = 'alice@booking.local') AND status = 'PENDING')"}
+              - column: {name: action, value: CREATED}
+        - insert:
+            tableName: booking_history
+            columns:
+              - column: {name: booking_id, valueComputed: "(SELECT id FROM bookings WHERE resource_id = (SELECT id FROM resources WHERE name = 'Focus Room B') AND user_id = (SELECT id FROM users WHERE email = 'bob@booking.local') AND status = 'CONFIRMED')"}
+              - column: {name: action, value: CREATED}
+        - insert:
+            tableName: booking_history
+            columns:
+              - column: {name: booking_id, valueComputed: "(SELECT id FROM bookings WHERE resource_id = (SELECT id FROM resources WHERE name = 'Focus Room B') AND user_id = (SELECT id FROM users WHERE email = 'bob@booking.local') AND status = 'CONFIRMED')"}
+              - column: {name: action, value: STATUS_CHANGED_TO_CONFIRMED}
+        - insert:
+            tableName: booking_history
+            columns:
+              - column: {name: booking_id, valueComputed: "(SELECT id FROM bookings WHERE resource_id = (SELECT id FROM resources WHERE name = 'Executive Room C') AND user_id = (SELECT id FROM users WHERE email = 'alice@booking.local') AND status = 'CANCELLED')"}
+              - column: {name: action, value: CREATED}
+        - insert:
+            tableName: booking_history
+            columns:
+              - column: {name: booking_id, valueComputed: "(SELECT id FROM bookings WHERE resource_id = (SELECT id FROM resources WHERE name = 'Executive Room C') AND user_id = (SELECT id FROM users WHERE email = 'alice@booking.local') AND status = 'CANCELLED')"}
+              - column: {name: action, value: STATUS_CHANGED_TO_CANCELLED}
+  - changeSet:
+      id: 017-update-demo-user-to-rtishtyk
+      author: codex
+      changes:
+        - update:
+            tableName: users
+            columns:
+              - column: {name: email, value: rtishtyk@gmail.com}
+              - column: {name: password, value: $2y$10$L1mvd6Gdsn09vVRwYPgAf.7usnqmVGc1lUc2Low655PxAHSULxzsK}
+            where: "email = 'alice@booking.local' AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'rtishtyk@gmail.com')"
+  - changeSet:
+      id: 018-sync-rtishtyk-password
+      author: codex
+      changes:
+        - update:
+            tableName: users
+            columns:
+              - column: {name: password, value: $2y$10$L1mvd6Gdsn09vVRwYPgAf.7usnqmVGc1lUc2Low655PxAHSULxzsK}
+              - column: {name: enabled, valueBoolean: true}
+            where: "email = 'rtishtyk@gmail.com'"

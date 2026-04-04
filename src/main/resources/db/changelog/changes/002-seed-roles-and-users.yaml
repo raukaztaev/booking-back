@@ -1,0 +1,43 @@
+databaseChangeLog:
+  - changeSet:
+      id: 010-seed-roles
+      author: codex
+      changes:
+        - insert:
+            tableName: roles
+            columns:
+              - column: {name: name, value: ADMIN}
+        - insert:
+            tableName: roles
+            columns:
+              - column: {name: name, value: MANAGER}
+        - insert:
+            tableName: roles
+            columns:
+              - column: {name: name, value: USER}
+  - changeSet:
+      id: 011-seed-admin-manager
+      author: codex
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column: {name: email, value: admin@booking.local}
+              - column: {name: password, value: $2y$10$3PEhWiAMXlbqXK0HfLjrweWEn.IrEuP.9ek1igrRRUukK4bKsSahG}
+              - column: {name: enabled, valueBoolean: true}
+        - insert:
+            tableName: users
+            columns:
+              - column: {name: email, value: manager@booking.local}
+              - column: {name: password, value: $2y$10$3PEhWiAMXlbqXK0HfLjrweWEn.IrEuP.9ek1igrRRUukK4bKsSahG}
+              - column: {name: enabled, valueBoolean: true}
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'admin@booking.local')"}
+              - column: {name: role_id, valueComputed: "(SELECT id FROM roles WHERE name = 'ADMIN')"}
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: {name: user_id, valueComputed: "(SELECT id FROM users WHERE email = 'manager@booking.local')"}
+              - column: {name: role_id, valueComputed: "(SELECT id FROM roles WHERE name = 'MANAGER')"}

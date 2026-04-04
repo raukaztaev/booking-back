@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: booking-back
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/booking_db}
+    username: ${DB_USERNAME:booking}
+    password: ${DB_PASSWORD:booking}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  error:
+    include-message: always
+
+app:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_ORIGIN:http://localhost:3001}
+      - http://localhost:3000
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
+    allow-credentials: true
+    max-age: 3600
+  security:
+    jwt:
+      issuer: booking-back
+      access-token-expiration: 900000
+      refresh-token-expiration: 604800000
+      secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-1234567890}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

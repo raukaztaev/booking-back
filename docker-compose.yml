@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: booking-postgres
+    cap_add:
+      - NET_ADMIN
     environment:
       POSTGRES_DB: booking_db
       POSTGRES_USER: booking

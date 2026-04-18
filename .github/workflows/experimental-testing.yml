@@ -1,0 +1,67 @@
+name: Experimental Testing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  experimental:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Make scripts executable
+        run: |
+          chmod +x ./gradlew
+          chmod +x performance/*.sh
+          chmod +x chaos/*.sh
+
+      - name: Build and start services
+        run: docker compose up -d --build
+
+      - name: Wait for API health
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || true)
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become healthy"
+          exit 1
+
+      - name: Run focused mutation tests (PIT)
+        run: ./gradlew pitest
+
+      - name: Run performance test (auth/login, normal profile)
+        run: LOAD_PROFILE=normal BASE_URL=http://localhost:8080 k6 run --summary-export performance/auth-login-summary.json performance/auth-login.js
+
+      - name: Run chaos scenario (db-stop short)
+        run: FAULT_DURATION_SECONDS=20 WARMUP_SECONDS=10 POST_RECOVERY_SECONDS=20 ./chaos/run-chaos-scenario.sh db-stop
+
+      - name: Upload experimental artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-testing-artifacts
+          path: |
+            build/reports/pitest
+            performance/*.json
+            chaos/logs
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
+

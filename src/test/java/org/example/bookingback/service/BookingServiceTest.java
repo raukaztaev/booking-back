@@ -1,9 +1,11 @@
 package org.example.bookingback.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +20,7 @@ import org.example.bookingback.entity.enums.BookingStatus;
 import org.example.bookingback.exception.BadRequestException;
 import org.example.bookingback.exception.ConflictException;
 import org.example.bookingback.exception.ForbiddenException;
+import org.example.bookingback.exception.NotFoundException;
 import org.example.bookingback.repository.BookingHistoryRepository;
 import org.example.bookingback.repository.BookingRepository;
 import org.example.bookingback.repository.ResourceAccessRepository;
@@ -45,6 +48,7 @@ class BookingServiceTest {
     private BookingService bookingService;
 
     private User actor;
+    private User owner;
     private Resource resource;
 
     @BeforeEach
@@ -53,7 +57,7 @@ class BookingServiceTest {
         actor.setId(10L);
         actor.setEmail("user@test.local");
 
-        User owner = new User();
+        owner = new User();
         owner.setId(20L);
         owner.setEmail("manager@test.local");
 
@@ -97,6 +101,27 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Разрешаем бронирование restricted-ресурса при явном доступе")
+    void shouldAllowRestrictedResourceWithGrant() {
+        resource.setRestricted(true);
+        CreateBookingRequest request = new CreateBookingRequest(
+                30L,
+                OffsetDateTime.now().plusHours(2),
+                OffsetDateTime.now().plusHours(3)
+        );
+
+        when(resourceService.getById(30L)).thenReturn(resource);
+        when(resourceAccessRepository.existsByResourceIdAndUserId(30L, 10L)).thenReturn(true);
+        when(bookingRepository.existsOverlappingBooking(eq(30L), any(), any(), eq(BookingStatus.CANCELLED))).thenReturn(false);
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Booking created = bookingService.create(request, actor, false);
+
+        assertEquals(BookingStatus.PENDING, created.getStatus());
+        verify(bookingHistoryRepository).save(any());
+    }
+
+    @Test
     @DisplayName("Создаем обычную бронь, если все ок")
     void shouldCreatePendingBookingWhenValid() {
         CreateBookingRequest request = new CreateBookingRequest(
@@ -119,6 +144,8 @@ class BookingServiceTest {
         assertEquals(BookingStatus.PENDING, created.getStatus());
         assertEquals(actor, created.getUser());
         assertEquals(resource, created.getResource());
+        assertEquals(request.startTime(), created.getStartTime());
+        assertEquals(request.endTime(), created.getEndTime());
     }
 
     @Test
@@ -164,16 +191,139 @@ class BookingServiceTest {
     @Test
     @DisplayName("Пользователь не может сам себе подтвердить бронь")
     void shouldRejectConfirmByBooker() {
-        Booking booking = new Booking();
-        booking.setId(300L);
-        booking.setStatus(BookingStatus.PENDING);
-        booking.setUser(actor);
-        booking.setResource(resource);
+        Booking booking = booking(300L, BookingStatus.PENDING, actor, owner);
 
         when(bookingRepository.findWithDetailsById(300L)).thenReturn(Optional.of(booking));
 
         assertThrows(ForbiddenException.class, () ->
                 bookingService.updateStatus(300L, BookingStatus.CONFIRMED, actor, false)
         );
+    }
+
+    @Test
+    @DisplayName("Booker может получить свою бронь по id")
+    void shouldReturnBookingForBookerInGetByIdForActor() {
+        Booking booking = booking(308L, BookingStatus.PENDING, actor, owner);
+        when(bookingRepository.findWithDetailsById(308L)).thenReturn(Optional.of(booking));
+
+        Booking result = bookingService.getByIdForActor(308L, actor, false);
+
+        assertSame(booking, result);
+    }
+
+    @Test
+    @DisplayName("Постороннему пользователю не отдаем чужую бронь по id")
+    void shouldHideBookingForForeignActorInGetByIdForActor() {
+        User booker = new User();
+        booker.setId(501L);
+        Booking booking = booking(309L, BookingStatus.PENDING, booker, owner);
+        when(bookingRepository.findWithDetailsById(309L)).thenReturn(Optional.of(booking));
+
+        assertThrows(NotFoundException.class, () -> bookingService.getByIdForActor(309L, actor, false));
+    }
+
+    @Test
+    @DisplayName("Владелец ресурса может подтверждать бронь")
+    void shouldAllowOwnerToConfirm() {
+        User booker = new User();
+        booker.setId(55L);
+        Booking booking = booking(301L, BookingStatus.PENDING, booker, owner);
+
+        when(bookingRepository.findWithDetailsById(301L)).thenReturn(Optional.of(booking));
+
+        Booking updated = bookingService.updateStatus(301L, BookingStatus.CONFIRMED, owner, false);
+
+        assertEquals(BookingStatus.CONFIRMED, updated.getStatus());
+        verify(bookingHistoryRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Владелец ресурса не может вернуть статус в PENDING")
+    void shouldRejectOwnerInvalidTargetStatus() {
+        User booker = new User();
+        booker.setId(56L);
+        Booking booking = booking(302L, BookingStatus.PENDING, booker, owner);
+
+        when(bookingRepository.findWithDetailsById(302L)).thenReturn(Optional.of(booking));
+
+        assertThrows(ForbiddenException.class, () ->
+                bookingService.updateStatus(302L, BookingStatus.PENDING, owner, false)
+        );
+    }
+
+    @Test
+    @DisplayName("Постороннему пользователю не отдаем бронь при смене статуса")
+    void shouldHideBookingForUnauthorizedActorOnUpdateStatus() {
+        User booker = new User();
+        booker.setId(77L);
+        Booking booking = booking(303L, BookingStatus.PENDING, booker, owner);
+
+        when(bookingRepository.findWithDetailsById(303L)).thenReturn(Optional.of(booking));
+
+        assertThrows(NotFoundException.class, () ->
+                bookingService.updateStatus(303L, BookingStatus.CANCELLED, actor, false)
+        );
+    }
+
+    @Test
+    @DisplayName("Delete для владельца брони переводит ее в CANCELLED")
+    void shouldCancelOnDeleteForOwnerBooking() {
+        Booking booking = booking(304L, BookingStatus.CONFIRMED, actor, owner);
+        when(bookingRepository.findWithDetailsById(304L)).thenReturn(Optional.of(booking));
+
+        bookingService.delete(304L, actor, false);
+
+        assertEquals(BookingStatus.CANCELLED, booking.getStatus());
+        verify(bookingHistoryRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Delete не пишет историю, если бронь уже отменена")
+    void shouldSkipHistoryWhenDeletingAlreadyCancelledBooking() {
+        Booking booking = booking(305L, BookingStatus.CANCELLED, actor, owner);
+        when(bookingRepository.findWithDetailsById(305L)).thenReturn(Optional.of(booking));
+
+        bookingService.delete(305L, actor, false);
+
+        verify(bookingHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Delete скрывает чужую бронь для обычного пользователя")
+    void shouldHideForeignBookingOnDelete() {
+        User booker = new User();
+        booker.setId(91L);
+        Booking booking = booking(306L, BookingStatus.PENDING, booker, owner);
+        when(bookingRepository.findWithDetailsById(306L)).thenReturn(Optional.of(booking));
+
+        assertThrows(NotFoundException.class, () -> bookingService.delete(306L, actor, false));
+        verify(bookingHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Manager/Admin может отменять бронь без ограничений владельца")
+    void shouldAllowManagerOrAdminToCancelBooking() {
+        User booker = new User();
+        booker.setId(42L);
+        Booking booking = booking(307L, BookingStatus.CONFIRMED, booker, owner);
+        when(bookingRepository.findWithDetailsById(307L)).thenReturn(Optional.of(booking));
+
+        bookingService.delete(307L, actor, true);
+
+        assertEquals(BookingStatus.CANCELLED, booking.getStatus());
+        verify(bookingHistoryRepository, atLeastOnce()).save(any());
+    }
+
+    private Booking booking(Long id, BookingStatus status, User booker, User resourceOwner) {
+        Resource bookingResource = new Resource();
+        bookingResource.setId(999L);
+        bookingResource.setOwner(resourceOwner);
+
+        Booking booking = new Booking();
+        booking.setId(id);
+        booking.setStatus(status);
+        booking.setUser(booker);
+        booking.setResource(bookingResource);
+        return booking;
     }
 }
